@@ -7,7 +7,7 @@ import numpy as np
 import scipy as sp
 import numba as nb
 from pytorch_mppi import mppi
-from algorithms import gedmd, SINDy
+from algorithms import rrr, SINDy
 from cartpole_reward import cartpoleCost
 
 #%% State constants
@@ -23,6 +23,8 @@ X = np.load('optimal-agent/cartpole-states.npy')
 U = np.load('optimal-agent/cartpole-actions.npy').reshape(-1,1)
 m = X.shape[0]
 
+#? is X full rank?
+
 #%% Data reformulation
 psi = observables.monomials(2)
 X_tilde = np.append(X, U, axis=1).T
@@ -33,10 +35,12 @@ nabla2Psi = psi.ddiff(X_tilde)
 dPsi_X_tilde = helpers.dPsiMatrix(X_tilde, nablaPsi, nabla2Psi, k, m)
 
 #%% Model
-L = gedmd(Psi_X_tilde.T, dPsi_X_tilde.T)
-K = np.zeros((k,k))
-K[:L.shape[0],:L.shape[1]] = sp.linalg.expm(L)
+# L = gedmd(Psi_X_tilde.T, dPsi_X_tilde.T)
+# K = np.zeros((k,k))
+# K[:L.shape[0],:L.shape[1]] = sp.linalg.expm(L)
 # dimensions reduce to not work with K @ psi_x
+L = rrr(Psi_X_tilde.T, dPsi_X_tilde.T)
+K = sp.linalg.expm(L)
 
 #%% To go from psi(x) -> x
 # Y - X B

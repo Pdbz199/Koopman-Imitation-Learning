@@ -17,6 +17,8 @@ def SINDy(Theta, dXdt, d, lamb=0.05):
     L = Xi
     return L
 
+# conjugate gradient?
+# https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.cg.html
 @nb.njit(fastmath=True)
 def ols(X, Y, pinv=True):
     if pinv:
@@ -34,6 +36,7 @@ def rrr(X, Y, rank=8):
     L = B_rr#.T
     return L
 
+# L = gedmd(Psi_X_tilde.T, dPsi_X_tilde.T)
 @nb.njit(fastmath=True)
 def gedmd(X, Y, rank=8):
     U, Sigma, VT = np.linalg.svd(X, full_matrices=False)
@@ -41,6 +44,8 @@ def gedmd(X, Y, rank=8):
     Sigma_tilde = np.diag(Sigma[:rank])
     VT_tilde = VT[:rank]
 
+    # Sigma_tilde.T @ (U_tilde.T @ Y @ VT_tilde.T).T = x
+    # 8 x 8                8 x 20000 x 20000 x 21 x 21 x 8
     M_tilde = np.linalg.solve(Sigma_tilde.T, (U_tilde.T @ Y @ VT_tilde.T).T).T
     L = M_tilde.T # estimate of Koopman generator
     return L
