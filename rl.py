@@ -7,7 +7,7 @@ import numpy as np
 import scipy as sp
 import numba as nb
 from pytorch_mppi import mppi
-from algorithms import gedmd
+from algorithms import gedmd, SINDy
 from cartpole_reward import cartpoleCost
 
 #%% State constants
@@ -36,6 +36,14 @@ dPsi_X_tilde = helpers.dPsiMatrix(X_tilde, nablaPsi, nabla2Psi, k, m)
 L = gedmd(Psi_X_tilde.T, dPsi_X_tilde.T)
 K = np.zeros((k,k))
 K[:L.shape[0],:L.shape[1]] = sp.linalg.expm(L)
+# dimensions reduce to not work with K @ psi_x
+
+#%% To go from psi(x) -> x
+# Y - X B
+# X_tilde - B.T Psi_X_tilde
+# X_tilde.T - Psi_X_tilde.T B
+#SINDy(Theta=Psi_X_T, dXdt=dPsi_X_T, lamb=0.05, n=d)
+B = SINDy(Psi_X_tilde.T, X_tilde.T, X_tilde.shape[0])
 
 #%% Dynamics
 # needs to take in x and return x'
@@ -44,7 +52,8 @@ def dynamics(x, u):
     x_tilde = np.append(x, u, axis=1).T
     psi_x_tilde = psi(x_tilde)
     psi_x_tilde_prime = K @ psi_x_tilde
-    return torch.from_numpy(psi_x_tilde_prime)
+    x_tilde_prime = B.T @ psi_x_tilde_prime
+    return torch.from_numpy(x_tilde_prime)
 
 #%% Create controller with chosen parameters
 ctrl = mppi.MPPI(dynamics, cartpoleCost, state_dimension, noise_sigma, num_samples=N_SAMPLES, horizon=TIMESTEPS,
