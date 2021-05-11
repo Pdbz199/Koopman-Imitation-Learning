@@ -62,30 +62,14 @@ def cartpoleReward(state, action):
     reward = (1 - (x ** 2) / 11.52 - (theta ** 2) / 288)
     return reward
 
+def angle_normalize(x):
+    return (((x + math.pi) % (2 * math.pi)) - math.pi)
 def cartpoleCost(state, action):
-    x, x_dot, theta, theta_dot = state
-
-    force = force_mag if action >= 0.5 else -force_mag
-    costheta = math.cos(theta)
-    sintheta = math.sin(theta)
-
-    temp = (force + polemass_length * theta_dot ** 2 * sintheta) / total_mass
-    thetaacc = (gravity * sintheta - costheta * temp) / (length * (4.0 / 3.0 - masspole * costheta ** 2 / total_mass))
-    xacc = temp - polemass_length * thetaacc * costheta / total_mass
-
-    if kinematics_integrator == 'euler':
-        x = x + tau * x_dot
-        x_dot = x_dot + tau * xacc
-        theta = theta + tau * theta_dot
-        theta_dot = theta_dot + tau * thetaacc
-    else:  # semi-implicit euler
-        x_dot = x_dot + tau * xacc
-        x = x + tau * x_dot
-        theta_dot = theta_dot + tau * thetaacc
-        theta = theta + tau * theta_dot
-
-    reward = -(1 - (x ** 2) / 11.52 - (theta ** 2) / 288)
-    return reward
+    theta = state[:, 0]
+    theta_dt = state[:, 1]
+    action = action[:, 0]
+    cost = angle_normalize(theta) ** 2 + 0.1 * theta_dt ** 2 + 0.001 * action ** 2
+    return cost
 
 # @nb.njit(fastmath=True)
 def defaultCartpoleReward(state, action):

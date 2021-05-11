@@ -15,7 +15,7 @@ N_SAMPLES = 10
 TIMESTEPS = 5
 state_dimension = 4
 noise_sigma = torch.tensor(1.0, dtype=torch.double)
-action_bounds = [0, 1]
+action_bounds = [0.0, 1.0]
 lambda_ = 1.0
 
 #%% Data
@@ -38,24 +38,26 @@ K = np.zeros((k,k))
 K[:L.shape[0],:L.shape[1]] = sp.linalg.expm(L)
 
 #%% Dynamics
+# needs to take in x and return x'
+# currently takes in x and returns psi(x)'
 def dynamics(x, u):
-    x_tilde = np.append(x, u)
-    psi_x_tilde = psi(x_tilde.reshape(-1,1))
+    x_tilde = np.append(x, u, axis=1).T
+    psi_x_tilde = psi(x_tilde)
     psi_x_tilde_prime = K @ psi_x_tilde
-    return psi_x_tilde_prime
+    return torch.from_numpy(psi_x_tilde_prime)
 
 #%% Create controller with chosen parameters
 ctrl = mppi.MPPI(dynamics, cartpoleCost, state_dimension, noise_sigma, num_samples=N_SAMPLES, horizon=TIMESTEPS,
-                         lambda_=lambda_,
-                         u_min=torch.tensor(action_bounds[0], dtype=torch.double),
-                         u_max=torch.tensor(action_bounds[1], dtype=torch.double))
+                        lambda_=lambda_,
+                        u_min=torch.tensor(action_bounds[0], dtype=torch.double),
+                        u_max=torch.tensor(action_bounds[1], dtype=torch.double))
 
 #%% Run in environment
 env = gym.make('CartPole-v0')
 observation = env.reset()
 episode_rewards = []
 for i in range(100):
-    action = ctrl.command(observation)
+    action = ctrl.command(observation) #psi(observation.reshape(-1,1))
     observation, reward, done, _ = env.step(action.cpu().numpy())
     episode_rewards.append(reward)
 
