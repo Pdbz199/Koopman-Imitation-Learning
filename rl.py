@@ -20,12 +20,10 @@ action_bounds = [0.0, 1.0]
 lambda_ = 1.0
 
 #%% Data
-X = np.load('optimal-agent/cartpole-states.npy').T[:, :1000]
-U = np.load('optimal-agent/cartpole-actions.npy').reshape(1,-1)[:, :1000]
-d = X.shape[0]
-m = X.shape[1]
+X = np.load('optimal-agent/cartpole-states.npy').T
+U = np.load('optimal-agent/cartpole-actions.npy').reshape(1,-1)
 
-if np.linalg.matrix_rank(X) == d:
+if np.linalg.matrix_rank(X) == X.shape[0]:
     print("X is full-rank")
 if np.linalg.matrix_rank(U) == U.shape[0]:
     print("U is full-rank")
@@ -33,10 +31,18 @@ if np.linalg.matrix_rank(U) == U.shape[0]:
 #%% Data reformulation
 # psi = observables.monomials(2)
 sigma = np.sqrt(0.3)
-kernel = kernels.gaussianKernel(sigma)
+kernel = kernels.gaussianKernelGeneralized(sigma)
 
-X_tilde = np.append(X, U, axis=0)
-Y_tilde = np.append(np.roll(X_tilde,-1)[:, :-1], np.zeros((d+1,1)), axis=1)
+def psi(x):
+    result = []
+    for x_tilde in X_tilde.T:
+        result.append(kernel(x, x_tilde))
+    return np.array(result)
+
+X_tilde = np.append(X, U, axis=0)[:, :1000]
+d = X_tilde.shape[0]
+m = X_tilde.shape[1]
+Y_tilde = np.append(np.roll(X_tilde,-1)[:, :-1], np.zeros((d,1)), axis=1)
 
 epsilon = 0
 G_0 = kernels.gramian(X_tilde, kernel)
@@ -66,7 +72,7 @@ K = sp.linalg.expm(L)
 # Y - X B
 # Y.T - B.T X.T
 # X_tilde.T - B.T G_0.T
-B = SINDy(G_0.T, X_tilde.T, d+1)
+B = SINDy(G_0.T, X_tilde.T, d)
 # B.T @ G_0[:, 0].reshape(-1,1) = X_tilde[:,0].reshape(-1,1)
 
 #%% Dynamics

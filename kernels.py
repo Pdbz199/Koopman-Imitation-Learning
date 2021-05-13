@@ -25,10 +25,11 @@ class gaussianKernelGeneralized(object):
     '''Generalized Gaussian kernel with bandwidths sigma = (sigma_1, ..., sigma_d).'''
     def __init__(self, sigma):
         self.sigma = sigma
-        self.D = _np.diag(1/(2*sigma**2))
+        self.D = (1/(2*sigma**2))
     def __call__(self, x, y):
         xy = _np.squeeze(x-y) # (d, 1) vs. (d, )
-        return _np.exp(-xy.T @ self.D @ xy )
+        xy = xy.reshape(-1,1)
+        return _np.exp((-xy.T * self.D @ xy)[0])
     def diff(self, x, y):
         return -2*self.D @ (x-y) * self(x, y)
     def ddiff(self, x, y):
