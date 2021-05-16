@@ -71,15 +71,6 @@ def cartpoleReward(state, action):
 def cartpoleCost(state, action):
     return -cartpoleReward(state, action)
 
-# def angle_normalize(x):
-#     return (((x + math.pi) % (2 * math.pi)) - math.pi)
-# def cartpoleCost(state, action):
-#     theta = state[:, 0]
-#     theta_dt = state[:, 1]
-#     action = action[:, 0]
-#     cost = angle_normalize(theta) ** 2 + 0.1 * theta_dt ** 2 + 0.001 * action ** 2
-#     return cost
-
 # @nb.njit(fastmath=True)
 def defaultCartpoleReward(state, action):
     x, x_dot, theta, theta_dot = state
