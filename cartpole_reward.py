@@ -1,6 +1,7 @@
 #%%
 import math
 # import gym
+import torch
 import numpy as np
 import numba as nb
 # env = gym.make('CartPole-v0')
@@ -31,11 +32,16 @@ high = np.array([x_threshold * 2,
 
 # @nb.njit(fastmath=True)
 def cartpoleReward(state, action):
-    x, x_dot, theta, theta_dot = state
+    # x, x_dot, theta, theta_dot = state
+    x = state[:,0].numpy()
+    x_dot = state[:,1].numpy()
+    theta = state[:,2].numpy()
+    theta_dot = state[:,3].numpy()
+    action = action[:,0].numpy()
 
-    force = force_mag if action >= 0.5 else -force_mag
-    costheta = math.cos(theta)
-    sintheta = math.sin(theta)
+    force = [force_mag if u >= 0.5 else -force_mag for u in action]
+    costheta = np.cos(theta)
+    sintheta = np.sin(theta)
 
     temp = (force + polemass_length * theta_dot ** 2 * sintheta) / total_mass
     thetaacc = (gravity * sintheta - costheta * temp) / (length * (4.0 / 3.0 - masspole * costheta ** 2 / total_mass))
@@ -60,16 +66,19 @@ def cartpoleReward(state, action):
     # )
 
     reward = (1 - (x ** 2) / 11.52 - (theta ** 2) / 288)
-    return reward
+    return torch.from_numpy(reward)
 
-def angle_normalize(x):
-    return (((x + math.pi) % (2 * math.pi)) - math.pi)
 def cartpoleCost(state, action):
-    theta = state[:, 0]
-    theta_dt = state[:, 1]
-    action = action[:, 0]
-    cost = angle_normalize(theta) ** 2 + 0.1 * theta_dt ** 2 + 0.001 * action ** 2
-    return cost
+    return -cartpoleReward(state, action)
+
+# def angle_normalize(x):
+#     return (((x + math.pi) % (2 * math.pi)) - math.pi)
+# def cartpoleCost(state, action):
+#     theta = state[:, 0]
+#     theta_dt = state[:, 1]
+#     action = action[:, 0]
+#     cost = angle_normalize(theta) ** 2 + 0.1 * theta_dt ** 2 + 0.001 * action ** 2
+#     return cost
 
 # @nb.njit(fastmath=True)
 def defaultCartpoleReward(state, action):

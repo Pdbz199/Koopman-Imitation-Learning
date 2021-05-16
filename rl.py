@@ -8,13 +8,13 @@ import kernels
 import numpy as np
 import scipy as sp
 import numba as nb
+import algorithms
 from pytorch_mppi import mppi
-from algorithms import rrr, SINDy
 from cartpole_reward import cartpoleCost
 
 #%% State constants
-N_SAMPLES = 300
-TIMESTEPS = 8
+N_SAMPLES = 400
+TIMESTEPS = 50
 noise_sigma = torch.tensor(1.0, dtype=torch.double)
 action_bounds = [0.0, 1.0]
 lambda_ = 1.0
@@ -23,60 +23,39 @@ lambda_ = 1.0
 X = np.load('optimal-agent/cartpole-states.npy').T
 U = np.load('optimal-agent/cartpole-actions.npy').reshape(1,-1)
 
-if np.linalg.matrix_rank(X) == X.shape[0]:
-    print("X is full-rank")
-if np.linalg.matrix_rank(U) == U.shape[0]:
-    print("U is full-rank")
-
 #%% Data reformulation
-# psi = observables.monomials(2)
-sigma = np.sqrt(0.3)
-kernel = kernels.gaussianKernelGeneralized(sigma)
-
-def psi(x):
-    result = []
-    for x_tilde in X_tilde.T:
-        result.append(kernel(x, x_tilde))
-    return np.array(result)
-
 X_tilde = np.append(X, U, axis=0)[:, :1000]
 d = X_tilde.shape[0]
 m = X_tilde.shape[1]
 Y_tilde = np.append(np.roll(X_tilde,-1)[:, :-1], np.zeros((d,1)), axis=1)
 
-epsilon = 0
-G_0 = kernels.gramian(X_tilde, kernel)
-G_1 = kernels.gramian2(X_tilde, Y_tilde, kernel).T
+#%% RBF sampler kernel
+from sklearn.kernel_approximation import RBFSampler
+rbf_feature = RBFSampler(gamma=1, random_state=1)
+X_features = rbf_feature.fit_transform(X_tilde)
+k = X_features.shape[1]
+psi = lambda x: X_features.T @ x
 
-# Psi_X_tilde = psi(X_tilde)
-# k = Psi_X_tilde.shape[0]
-# nablaPsi = psi.diff(X_tilde)
-# nabla2Psi = psi.ddiff(X_tilde)
-# dPsi_X_tilde = helpers.dPsiMatrix(X_tilde, nablaPsi, nabla2Psi, k, m)
+#%% Psi matrices
+def getPsiMatrix(psi, X):
+    matrix = np.empty((k,m))
+    for col in range(m):
+        matrix[:, col] = psi(X[:, col].reshape(-1,1))[:, 0]
+    return matrix
 
-#%% Model
-# L = gedmd(Psi_X_tilde.T, dPsi_X_tilde.T)
-# K = np.zeros((k,k))
-# K[:L.shape[0],:L.shape[1]] = sp.linalg.expm(L)
-# dimensions reduce to not work with K @ psi_x
-# L = rrr(Psi_X_tilde.T, dPsi_X_tilde.T)
-L = np.linalg.pinv(G_0 + epsilon * np.identity(m), rcond=1e-15) @ G_1
-K = sp.linalg.expm(L)
+Psi_X_tilde = getPsiMatrix(psi, X_tilde)
+Psi_Y_tilde = getPsiMatrix(psi, Y_tilde)
+
+#%% Koopman (use generator?)
+# || Y             - X B               ||
+# || Psi_Y_tilde   - K Psi_X_tilde     ||
+# || Psi_Y_tilde.T - Psi_X_tilde.T K.T ||
+K = algorithms.rrr(Psi_X_tilde.T, Psi_Y_tilde.T).T
 
 #%% To go from psi(x_tilde) -> x_tilde
-# Y - X B
-# X_tilde - B.T Psi_X_tilde
-# X_tilde.T - Psi_X_tilde.T B
-#SINDy(Theta=Psi_X_T, dXdt=dPsi_X_T, lamb=0.05, n=d)
-# B = SINDy(Psi_X_tilde.T, X_tilde.T, X_tilde.shape[0])
-# Y - X B
-# Y.T - B.T X.T
-# X_tilde.T - B.T G_0.T
-B = SINDy(G_0.T, X_tilde.T, d)
-# B.T @ G_0[:, 0].reshape(-1,1) = X_tilde[:,0].reshape(-1,1)
+B = algorithms.SINDy(Psi_X_tilde.T, X_tilde.T, X_tilde.shape[0])
 
 #%% Dynamics
-#? how do I change this function for kernels?
 def dynamics(x, u):
     x_tilde = np.append(x, u, axis=1).T
     psi_x_tilde = psi(x_tilde)
