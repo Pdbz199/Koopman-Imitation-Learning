@@ -30,6 +30,34 @@ high = np.array([x_threshold * 2,
                     np.finfo(np.float32).max],
                 dtype=np.float32)
 
+def cartpoleDynamics(state, action):
+    x = state[:,0].numpy()
+    x_dot = state[:,1].numpy()
+    theta = state[:,2].numpy()
+    theta_dot = state[:,3].numpy()
+    action = action[:,0].numpy()
+
+    force = [force_mag if u >= 0.5 else -force_mag for u in action]
+    costheta = np.cos(theta)
+    sintheta = np.sin(theta)
+
+    temp = (force + polemass_length * theta_dot ** 2 * sintheta) / total_mass
+    thetaacc = (gravity * sintheta - costheta * temp) / (length * (4.0 / 3.0 - masspole * costheta ** 2 / total_mass))
+    xacc = temp - polemass_length * thetaacc * costheta / total_mass
+
+    if kinematics_integrator == 'euler':
+        x = x + tau * x_dot
+        x_dot = x_dot + tau * xacc
+        theta = theta + tau * theta_dot
+        theta_dot = theta_dot + tau * thetaacc
+    else:  # semi-implicit euler
+        x_dot = x_dot + tau * xacc
+        x = x + tau * x_dot
+        theta_dot = theta_dot + tau * thetaacc
+        theta = theta + tau * theta_dot
+    
+    return torch.from_numpy(np.array([x, x_dot, theta, theta_dot]))
+
 # @nb.njit(fastmath=True)
 def cartpoleReward(state, action):
     # x, x_dot, theta, theta_dot = state
