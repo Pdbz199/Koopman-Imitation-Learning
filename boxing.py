@@ -1,27 +1,22 @@
-#%% Imports
+#%%
 import gym
-import helpers
-import observables
-import torch
-import domain
-import kernels
-import numpy as np
-import scipy as sp
-import numba as nb
+import d4rl_atari
 import algorithms
-from continuous_cartpole import CartPoleEnv
+import numpy as np
 
-#%% Data
-X = np.load('optimal-agent/cartpole-states.npy').T
-U = np.load('optimal-agent/cartpole-actions.npy').astype(np.float64).reshape(1,-1)
+#%%
+env = gym.make('boxing-expert-v0') # -v{0, 1, 2, 3, 4} for datasets with the other random seeds
 
-state_dim = X.shape[0]
+#%% interaction with its environment through dopamine-style Atari wrapper
+observation = env.reset() # observation.shape == (84, 84)
+observation, reward, terminal, info = env.step(env.action_space.sample())
 
-#%% Training data
-percent_training = 0.8
-train_ind = int(np.around(X.shape[1]*percent_training))
-X_train = X[:,:train_ind]
-U_train = U[:,:train_ind]
+#%% dataset will be automatically downloaded into ~/.d4rl/datasets/[GAME]/[INDEX]/[EPOCH]
+dataset = env.get_dataset()
+# dataset['observations'] # observation data in (1000000, 1, 84, 84)
+# dataset['actions'] # action data in (1000000,)
+# dataset['rewards'] # reward data in (1000000,)
+# dataset['terminals'] # terminal flags in (1000000,)
 
 #%% Median trick
 num_pairs = 1000
@@ -65,40 +60,22 @@ Psi_X = getPsiMatrix(psi, X)
 # || U.T - Psi_X.T K.T ||
 K = algorithms.rrr(Psi_X.T, U.T).T
 
-#%% To go from psi(x_tilde) -> x_tilde
-# B = algorithms.rrr(Psi_X_tilde.T, X_tilde_train.T)
+#%%
+print("Run in environment")
 
-#%% Imitation
-@nb.njit(fastmath=True)
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-def get_action(x):
-    action = (K @ psi(x))[0]
-    return int(np.around(sigmoid(action)))
-
-#%% Run in environment
-env = CartPoleEnv()
 episodes = 100
-rewards = []
+total_reward = 0
 for episode in range(episodes):
-    # reset environment and variables
-    episode_reward = 0
-    current_state = env.reset()
-    action = env.action_space.sample()
+    if (episode+1) % 25 == 0: print(episode+1)
+    observation = env.reset()
     done = False
 
-    while done == False:
-        # env.render()
-
-        action = get_action(current_state)
-        current_state, reward, done, _ = env.step(action)
-        episode_reward += reward
-
-    rewards.append(episode_reward)
+    while not done:
+        action = dataset['actions'][episode]
+        observation, reward, done, _ = env.step(action)
+        total_reward += reward
 
 env.close()
-
-print("Average reward:", np.mean(rewards))
+print("Average episode reward:", total_reward/episodes)
 
 #%%
