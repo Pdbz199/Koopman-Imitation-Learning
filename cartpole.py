@@ -32,6 +32,7 @@ X_validation = X[:,train_ind:]
 U_validation = U[:,train_ind:]
 
 #%% Median trick
+# from http://alex.smola.org/teaching/kernelcourse/day_2.pdf
 num_pairs = 1000
 pairwise_distances = []
 for _ in range(num_pairs):
@@ -43,18 +44,18 @@ pairwise_distances = np.array(pairwise_distances)
 gamma = np.quantile(pairwise_distances, 0.9)
 
 #%% RBF sampler kernel
-# from sklearn.kernel_approximation import RBFSampler
-# rbf_feature = RBFSampler(gamma=gamma, random_state=1)
-# X_features = rbf_feature.fit_transform(X_tilde)
-# def psi(x):
-#     return X_features.T @ x
+from sklearn.kernel_approximation import RBFSampler
+rbf_feature = RBFSampler(gamma=gamma, random_state=1, n_components=400)
+X_features = rbf_feature.fit_transform(X)
+def psi(x):
+    return X_features.T @ x
 
 #%% Nystroem
-from sklearn.kernel_approximation import Nystroem
-feature_map_nystroem = Nystroem(gamma=gamma, random_state=1, n_components=state_dim)
-data_transformed = feature_map_nystroem.fit_transform(X)
-def psi(x):
-    return data_transformed @ x
+# from sklearn.kernel_approximation import Nystroem
+# feature_map_nystroem = Nystroem(gamma=gamma, random_state=1, n_components=state_dim)
+# data_transformed = feature_map_nystroem.fit_transform(X)
+# def psi(x):
+#     return data_transformed @ x
 
 #%% Psi matrices
 def getPsiMatrix(psi, X):
@@ -82,35 +83,6 @@ def get_action(x):
     action = (K @ psi(x))[0]
     return int(np.around(sigmoid(action)))
 
-#%% Decompose Koopman
-u, s, vh = helpers.SVD(K)
-sv_functions = lambda l, x: np.inner(vh[l], psi(x))
-
-#%%
-plt.imshow(env.render(vh[0], 'rgb_array'))
-#%%
-plt.imshow(env.render(vh[1], 'rgb_array'))
-#%%
-plt.imshow(env.render(vh[2], 'rgb_array'))
-#%%
-plt.imshow(env.render(vh[3], 'rgb_array'))
-
-#%%
-Xs = np.append(X_train[0,:100].reshape(1,-1), np.array([X_train[1:,0] for i in range(100)]).T, axis=0).T
-sv_function_0_outputs = np.array([sv_functions(0, x) for x in Xs])
-sv_function_1_outputs = np.array([sv_functions(1, x) for x in Xs])
-sv_function_2_outputs = np.array([sv_functions(2, x) for x in Xs])
-sv_function_3_outputs = np.array([sv_functions(3, x) for x in Xs])
-
-#%%
-plt.plot(sv_function_0_outputs, marker='.', linestyle='')
-#%%
-plt.plot(sv_function_1_outputs, marker='.', linestyle='')
-#%%
-plt.plot(sv_function_2_outputs, marker='.', linestyle='')
-#%%
-plt.plot(sv_function_3_outputs, marker='.', linestyle='')
-
 #%% Error testing
 print("Training error:")
 norms = []
@@ -136,8 +108,50 @@ print("Mean difference:", np.mean(norms))
 accuracy = (norms.shape[0]-np.count_nonzero(norms)) / norms.shape[0]
 print("Percent accuracy:", accuracy * 100)
 
+# Both Nystroem and RBF Sampler give the same results:
+# Training error:
+# Mean difference: 0.1479375
+# Percent accuracy: 85.20625
+# Validation error:
+# Mean difference: 0.143
+# Percent accuracy: 85.7
+
+#%% Decompose Koopman
+u, s, vh = helpers.SVD(K)
+sv_functions = lambda l, x: np.inner(vh[l], psi(x))
+
+#%%
+plt.imshow(env.render(vh[0], 'rgb_array'))
+#%%
+plt.imshow(env.render(vh[1], 'rgb_array'))
+#%%
+plt.imshow(env.render(vh[2], 'rgb_array'))
+#%%
+plt.imshow(env.render(vh[3], 'rgb_array'))
+
+#%%
+# Xs = np.append(X_train[0,:100].reshape(1,-1), np.array([X_train[1:,0] for i in range(100)]).T, axis=0).T
+Xs = X[:,:100].T
+sv_function_0_outputs = np.array([sv_functions(0, x) for x in Xs])
+sv_function_1_outputs = np.array([sv_functions(1, x) for x in Xs])
+sv_function_2_outputs = np.array([sv_functions(2, x) for x in Xs])
+sv_function_3_outputs = np.array([sv_functions(3, x) for x in Xs])
+
+#%%
+plt.plot(sv_function_0_outputs, marker='.', linestyle='')
+plt.show()
+#%%
+plt.plot(sv_function_1_outputs, marker='.', linestyle='')
+plt.show()
+#%%
+plt.plot(sv_function_2_outputs, marker='.', linestyle='')
+plt.show()
+#%%
+plt.plot(sv_function_3_outputs, marker='.', linestyle='')
+plt.show()
+
 #%% Run in environment
-episodes = 1
+episodes = 100
 rewards = []
 for episode in range(episodes):
     # reset environment and variables
@@ -156,5 +170,6 @@ for episode in range(episodes):
 env.close()
 
 print("Average reward:", np.mean(rewards))
+# Average reward per episode: 3771.22
 
 #%%

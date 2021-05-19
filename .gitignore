@@ -2,3 +2,5 @@ __pycache__/
 pytorch_mppi/
 .vscode/
 .ipynb_checkpoints/
+graphs/
+boxing_arrays/

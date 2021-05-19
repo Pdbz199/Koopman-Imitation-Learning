@@ -41,7 +41,7 @@ state_dim = states_training.shape[0]
 
 #%% Median trick
 print("Median trick:")
-num_pairs = 10000 # 1000
+num_pairs = 1000
 pairwise_distances = []
 for _ in range(num_pairs):
     i, j = np.random.choice(np.arange(states.shape[0]), 2)
@@ -54,9 +54,10 @@ gamma = np.quantile(pairwise_distances, 0.9)
 #%% RBF sampler kernel
 print("RBF Sampler:")
 from sklearn.kernel_approximation import RBFSampler
-component_dim = int(np.around(200)) #7056*1.5
+component_dim = int(np.around(8000))
 rbf_feature = RBFSampler(gamma=gamma, random_state=1, n_components=component_dim)
 state_features = rbf_feature.fit_transform(states_training)
+# state_features = np.load('boxing_arrays/rbf_state_features.npy')
 #%%
 def psi(state):
     return state_features.T @ state
@@ -71,6 +72,7 @@ def getPsiMatrix(psi, X):
     return matrix
 
 Psi_X = getPsiMatrix(psi, states_training)
+# Psi_X = np.load('boxing_arrays/psi_x.npy')
 
 #%% Koopman (use generator?)
 # || Y         - X B         ||
@@ -78,13 +80,14 @@ Psi_X = getPsiMatrix(psi, states_training)
 # || actions.T - Psi_X.T K.T ||
 print("Learn Koopman operator:")
 K = algorithms.rrr(Psi_X.T, actions_training.T).T
-# K = algorithms.SINDy(Psi_X.T, actions_training.T, lamb=0.0005).T
+# K = np.load('boxing_arrays/koopman_operator.npy')
 
 #%% find B s.t. B.T psi(x) -> x
 # || Y        - X B         ||
 # || states   - psi_x B     ||
 # || states.T - B.T psi_x.T ||
 B = algorithms.rrr(Psi_X.T, states_training.astype(np.float64).T)
+# B = np.load('boxing_arrays/psi_x_to_x_operator.npy')
 
 #%%
 def get_action(state):
@@ -115,16 +118,24 @@ print("Mean difference:", np.mean(norms))
 accuracy = (norms.shape[0]-np.count_nonzero(norms)) / norms.shape[0]
 print("Percent accuracy:", accuracy * 100)
 
+# Training error:
+# Mean difference: 22.2551
+# Percent accuracy: 6.554
+# Validation error:
+# Mean difference: 32.497368421052634
+# Percent accuracy: 5.707368421052632
+
 #%%
 _, __, vh = helpers.SVD(K)
-important_states = B.T @ vh[:,139]
+important_states = B.T @ vh.T
 for i in range(10):
     plt.imshow(important_states[:,i].reshape(screen_dims))
+    plt.show()
 
 #%%
 print("Run in environment:")
 
-episodes = 5
+episodes = 1
 total_reward = 0
 for episode in range(episodes):
     if (episode+1) % 25 == 0: print(episode+1)
