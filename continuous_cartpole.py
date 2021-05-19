@@ -158,7 +158,7 @@ class CartPoleEnv(gym.Env):
         self.steps_beyond_done = None
         return np.array(self.state)
 
-    def render(self, mode='human'):
+    def render(self, state, mode='human'):
         screen_width = 600
         screen_height = 400
 
@@ -205,7 +205,7 @@ class CartPoleEnv(gym.Env):
         l, r, t, b = -polewidth / 2, polewidth / 2, polelen - polewidth / 2, -polewidth / 2
         pole.v = [(l, b), (l, t), (r, t), (r, b)]
 
-        x = self.state
+        x = state
         cartx = x[0] * scale + screen_width / 2.0  # MIDDLE OF CART
         self.carttrans.set_translation(cartx, carty)
         self.poletrans.set_rotation(-x[2])

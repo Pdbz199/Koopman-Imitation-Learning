@@ -9,7 +9,11 @@ import numpy as np
 import scipy as sp
 import numba as nb
 import algorithms
+import matplotlib.pyplot as plt
 from continuous_cartpole import CartPoleEnv
+
+env = CartPoleEnv()
+env.reset()
 
 #%% Data
 X = np.load('optimal-agent/cartpole-states.npy').T
@@ -20,8 +24,12 @@ state_dim = X.shape[0]
 #%% Training data
 percent_training = 0.8
 train_ind = int(np.around(X.shape[1]*percent_training))
+
 X_train = X[:,:train_ind]
 U_train = U[:,:train_ind]
+
+X_validation = X[:,train_ind:]
+U_validation = U[:,train_ind:]
 
 #%% Median trick
 num_pairs = 1000
@@ -65,9 +73,6 @@ Psi_X = getPsiMatrix(psi, X)
 # || U.T - Psi_X.T K.T ||
 K = algorithms.rrr(Psi_X.T, U.T).T
 
-#%% To go from psi(x_tilde) -> x_tilde
-# B = algorithms.rrr(Psi_X_tilde.T, X_tilde_train.T)
-
 #%% Imitation
 @nb.njit(fastmath=True)
 def sigmoid(x):
@@ -77,9 +82,62 @@ def get_action(x):
     action = (K @ psi(x))[0]
     return int(np.around(sigmoid(action)))
 
+#%% Decompose Koopman
+u, s, vh = helpers.SVD(K)
+sv_functions = lambda l, x: np.inner(vh[l], psi(x))
+
+#%%
+plt.imshow(env.render(vh[0], 'rgb_array'))
+#%%
+plt.imshow(env.render(vh[1], 'rgb_array'))
+#%%
+plt.imshow(env.render(vh[2], 'rgb_array'))
+#%%
+plt.imshow(env.render(vh[3], 'rgb_array'))
+
+#%%
+Xs = np.append(X_train[0,:100].reshape(1,-1), np.array([X_train[1:,0] for i in range(100)]).T, axis=0).T
+sv_function_0_outputs = np.array([sv_functions(0, x) for x in Xs])
+sv_function_1_outputs = np.array([sv_functions(1, x) for x in Xs])
+sv_function_2_outputs = np.array([sv_functions(2, x) for x in Xs])
+sv_function_3_outputs = np.array([sv_functions(3, x) for x in Xs])
+
+#%%
+plt.plot(sv_function_0_outputs, marker='.', linestyle='')
+#%%
+plt.plot(sv_function_1_outputs, marker='.', linestyle='')
+#%%
+plt.plot(sv_function_2_outputs, marker='.', linestyle='')
+#%%
+plt.plot(sv_function_3_outputs, marker='.', linestyle='')
+
+#%% Error testing
+print("Training error:")
+norms = []
+for state_index in range(X_train.shape[1]):
+    true_action = U_train[:,state_index]
+    predicted_action = np.array([get_action(X_train[:,state_index])])
+    l2_norm = helpers.l2_norm(true_action, predicted_action)
+    norms.append(l2_norm)
+norms = np.array(norms)
+print("Mean difference:", np.mean(norms))
+accuracy = (norms.shape[0]-np.count_nonzero(norms)) / norms.shape[0]
+print("Percent accuracy:", accuracy * 100)
+
+print("\nValidation error:")
+norms = []
+for state_index in range(X_validation.shape[1]):
+    true_action = U_validation[:,state_index]
+    predicted_action = np.array([get_action(X_validation[:,state_index])])
+    l2_norm = helpers.l2_norm(true_action, predicted_action)
+    norms.append(l2_norm)
+norms = np.array(norms)
+print("Mean difference:", np.mean(norms))
+accuracy = (norms.shape[0]-np.count_nonzero(norms)) / norms.shape[0]
+print("Percent accuracy:", accuracy * 100)
+
 #%% Run in environment
-env = CartPoleEnv()
-episodes = 100
+episodes = 1
 rewards = []
 for episode in range(episodes):
     # reset environment and variables
@@ -89,8 +147,6 @@ for episode in range(episodes):
     done = False
 
     while done == False:
-        # env.render()
-
         action = get_action(current_state)
         current_state, reward, done, _ = env.step(action)
         episode_reward += reward

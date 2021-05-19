@@ -5,6 +5,10 @@ import warnings
 
 warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 
+@nb.njit(fastmath=True)
+def l2_norm(true_state, predicted_state):
+    return np.sum(np.power(( true_state - predicted_state ), 2 ))
+
 @nb.njit(fastmath=True) #, parallel=True)
 def nb_einsum(A, B):
     assert A.shape == B.shape
@@ -32,3 +36,8 @@ def dPsiMatrix(X, nablaPsi, nabla2Psi, k, m, t=1):
                 X, nablaPsi, nabla2Psi, row, column, t=t
             )
     return dPsi_X
+
+@nb.njit(fastmath=True)
+def SVD(X, full_matrices=True):
+    # return u, s, vh
+    return np.linalg.svd(X, full_matrices=full_matrices)
