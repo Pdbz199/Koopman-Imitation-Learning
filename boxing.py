@@ -53,11 +53,11 @@ gamma = np.quantile(pairwise_distances, 0.9)
 
 #%% RBF sampler kernel
 print("RBF Sampler:")
-from sklearn.kernel_approximation import RBFSampler
-component_dim = int(np.around(8000))
-rbf_feature = RBFSampler(gamma=gamma, random_state=1, n_components=component_dim)
-state_features = rbf_feature.fit_transform(states_training)
-# state_features = np.load('boxing_arrays/rbf_state_features.npy')
+# from sklearn.kernel_approximation import RBFSampler
+# component_dim = int(np.around(8000))
+# rbf_feature = RBFSampler(gamma=gamma, random_state=1, n_components=component_dim)
+# state_features = rbf_feature.fit_transform(states_training)
+state_features = np.load('boxing_arrays/rbf_state_features.npy')
 #%%
 def psi(state):
     return state_features.T @ state
@@ -71,23 +71,23 @@ def getPsiMatrix(psi, X):
         matrix[:, col] = psi(X[:,col].reshape(-1,1))[:, 0]
     return matrix
 
-Psi_X = getPsiMatrix(psi, states_training)
-# Psi_X = np.load('boxing_arrays/psi_x.npy')
+# Psi_X = getPsiMatrix(psi, states_training)
+Psi_X = np.load('boxing_arrays/psi_x.npy')
 
 #%% Koopman (use generator?)
 # || Y         - X B         ||
 # || actions   - K Psi_X     ||
 # || actions.T - Psi_X.T K.T ||
 print("Learn Koopman operator:")
-K = algorithms.rrr(Psi_X.T, actions_training.T).T
-# K = np.load('boxing_arrays/koopman_operator.npy')
+# K = algorithms.rrr(Psi_X.T, actions_training.T).T
+K = np.load('boxing_arrays/koopman_operator.npy')
 
 #%% find B s.t. B.T psi(x) -> x
 # || Y        - X B         ||
 # || states   - psi_x B     ||
 # || states.T - B.T psi_x.T ||
-B = algorithms.rrr(Psi_X.T, states_training.astype(np.float64).T)
-# B = np.load('boxing_arrays/psi_x_to_x_operator.npy')
+# B = algorithms.rrr(Psi_X.T, states_training.astype(np.float64).T)
+B = np.load('boxing_arrays/psi_x_to_x_operator.npy')
 
 #%%
 def get_action(state):
@@ -135,7 +135,7 @@ for i in range(10):
 #%%
 print("Run in environment:")
 
-episodes = 1
+episodes = 100
 total_reward = 0
 for episode in range(episodes):
     if (episode+1) % 25 == 0: print(episode+1)
@@ -155,5 +155,7 @@ for episode in range(episodes):
 
 env.close()
 print("Average episode reward:", total_reward/episodes)
+
+# Average episode reward: -2.49
 
 #%%
